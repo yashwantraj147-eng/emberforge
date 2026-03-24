@@ -1,0 +1,47 @@
+# ============================================================================
+# Emberforge — .gitignore for C++ / CMake projects
+# ============================================================================
+
+# --- Build artifacts ---
+build/
+out/
+cmake-build-*/
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dylib
+*.dll
+*.exe
+
+# --- CMake generated files ---
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+CMakeScripts/
+CTestTestfile.cmake
+_deps/
+
+# --- IDE / Editor files ---
+.vscode/
+.vs/
+.idea/
+*.swp
+*.swo
+*~
+*.user
+*.suo
+*.ncb
+*.opensdf
+*.sdf
+
+# --- OS junk ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Compiled binaries ---
+emberforge
+emberforge.exe
