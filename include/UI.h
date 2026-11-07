@@ -4,6 +4,7 @@
 // ============================================================================
 #pragma once
 
+#include "Types.h"
 #include <string>
 
 namespace emberforge {
@@ -25,6 +26,7 @@ public:
     static void printMainMenu();
     static int  getChoice(int min, int max);
     static std::string getPlayerName();
+    static PlayerClass getPlayerClassChoice();
 
     // ── Combat HUD ─────────────────────────────────────────────────────────
     static void printCombatHeader(const Player& p, const Enemy& e);
@@ -36,7 +38,7 @@ public:
                                   const std::string& color = "");
     static void printDamageReport(const std::string& attacker,
                                   const std::string& target,
-                                  int damage, bool dodged);
+                                  int damage, bool dodged, bool isCrit = false);
 
     // ── Info screens ───────────────────────────────────────────────────────
     static void printPlayerStats(const Player& p);
@@ -44,7 +46,9 @@ public:
     static void printVictory(int xp, int gold, bool potionDrop);
     static void printDefeat();
     static void printLevelUp(const Player& p);
-    static void printCampfire();
+    static void printCampfire(int remainingRests);
+    static void printMerchantMenu(const Player& p);
+    static void printMerchantMessage(const std::string& msg, const std::string& color = "");
     static void printGameComplete(const Player& p);
 
     // ── Drawing helpers ────────────────────────────────────────────────────

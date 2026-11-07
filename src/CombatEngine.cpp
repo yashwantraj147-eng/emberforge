@@ -3,16 +3,10 @@
 //  Orchestrates a full turn-based encounter between Player and Enemy.
 // ============================================================================
 #include "CombatEngine.h"
+#include "Random.h"
 #include "UI.h"
 
-#include <random>
-
 namespace emberforge {
-
-static std::mt19937& rng() {
-    static std::mt19937 gen(std::random_device{}());
-    return gen;
-}
 
 CombatEngine::CombatEngine(Player& player, std::unique_ptr<Enemy> enemy)
     : player_(player), enemy_(std::move(enemy)), turnCount_(0)
@@ -38,7 +32,7 @@ bool CombatEngine::engage() {
     if (player_.isAlive()) {
         int xp   = enemy_->getXpReward();
         int gold = enemy_->getGoldReward();
-        bool potionDrop = (std::uniform_int_distribution<>(1, 100)(rng()) <= 35);
+        bool potionDrop = Random::chance(35);
 
         player_.gainXP(xp);
         player_.gainGold(gold);
@@ -46,7 +40,7 @@ bool CombatEngine::engage() {
         if (potionDrop) player_.addPotion();
 
         UI::printVictory(xp, gold, potionDrop);
-        if (player_.checkLevelUp()) {
+        while (player_.checkLevelUp()) {
             UI::printLevelUp(player_);
         }
         return true;
@@ -70,56 +64,67 @@ void CombatEngine::playerTurn() {
     // Make sure dodge flag is cleared at the start of the player's turn
     player_.setDodging(false);
 
-    UI::printCombatMenu(player_);
-    int choice = UI::getChoice(1, 5);
+    bool turnCompleted = false;
+    while (!turnCompleted) {
+        UI::printCombatMenu(player_);
+        int choice = UI::getChoice(1, 5);
 
-    switch (choice) {
-    case 1: { // Strike
-        if (!player_.hasEnoughStamina(cost::STRIKE)) {
-            UI::printCombatAction("  Not enough stamina! You stumble and waste your turn.",
-                                  ansi::DIM);
+        switch (choice) {
+        case 1: { // Strike
+            if (!player_.hasEnoughStamina(cost::STRIKE)) {
+                UI::printCombatAction("  Not enough stamina! You stumble and waste your turn.",
+                                      ansi::DIM);
+                turnCompleted = true;
+                break;
+            }
+            int raw = player_.performStrike();
+            DamageResult res = enemy_->takeDamage(raw);
+            UI::printDamageReport(player_.getName(), enemy_->getName(), res.damage, res.dodged,
+                                  player_.wasLastHitCrit());
+            turnCompleted = true;
             break;
         }
-        int raw = player_.performStrike();
-        int dmg = enemy_->takeDamage(raw);
-        UI::printDamageReport(player_.getName(), enemy_->getName(), dmg,
-                              enemy_->isDodging());
-        break;
-    }
-    case 2: { // Heavy Strike
-        if (!player_.hasEnoughStamina(cost::HEAVY_STRIKE)) {
-            UI::printCombatAction("  Your arms are too heavy... you need to rest!",
-                                  ansi::DIM);
+        case 2: { // Heavy Strike
+            if (!player_.hasEnoughStamina(cost::HEAVY_STRIKE)) {
+                UI::printCombatAction("  Your arms are too heavy... you need to rest!",
+                                      ansi::DIM);
+                turnCompleted = true;
+                break;
+            }
+            int raw = player_.performHeavyStrike();
+            DamageResult res = enemy_->takeDamage(raw);
+            UI::printDamageReport(player_.getName(), enemy_->getName(), res.damage, res.dodged,
+                                  player_.wasLastHitCrit());
+            turnCompleted = true;
             break;
         }
-        int raw = player_.performHeavyStrike();
-        int dmg = enemy_->takeDamage(raw);
-        UI::printDamageReport(player_.getName(), enemy_->getName(), dmg,
-                              enemy_->isDodging());
-        break;
-    }
-    case 3: // Dodge
-        if (!player_.hasEnoughStamina(cost::DODGE)) {
-            UI::printCombatAction("  Too exhausted to dodge!", ansi::DIM);
+        case 3: // Dodge
+            if (!player_.hasEnoughStamina(cost::DODGE)) {
+                UI::printCombatAction("  Too exhausted to dodge!", ansi::DIM);
+                turnCompleted = true;
+                break;
+            }
+            player_.performDodge();
+            UI::printCombatAction("  You brace and prepare to evade the next blow!",
+                                  ansi::BLUE);
+            turnCompleted = true;
+            break;
+        case 4: // Rest
+            player_.performRest();
+            UI::printCombatAction("  You catch your breath, recovering stamina...",
+                                  ansi::GREEN);
+            turnCompleted = true;
+            break;
+        case 5: // Potion
+            if (player_.usePotion()) {
+                UI::printCombatAction("  You drink a healing potion! HP restored.",
+                                      ansi::BR_GREEN);
+                turnCompleted = true;
+            } else {
+                UI::printCombatAction("  No potions left! Choose another action.", ansi::RED);
+            }
             break;
         }
-        player_.performDodge();
-        UI::printCombatAction("  You brace and prepare to evade the next blow!",
-                              ansi::BLUE);
-        break;
-    case 4: // Rest
-        player_.performRest();
-        UI::printCombatAction("  You catch your breath, recovering stamina...",
-                              ansi::GREEN);
-        break;
-    case 5: // Potion
-        if (player_.usePotion()) {
-            UI::printCombatAction("  You drink a healing potion! HP restored.",
-                                  ansi::BR_GREEN);
-        } else {
-            UI::printCombatAction("  No potions left!", ansi::RED);
-        }
-        break;
     }
 
     UI::sleepMs(800);
@@ -144,9 +149,8 @@ void CombatEngine::enemyTurn() {
         }
         enemy_->consumeStamina(cost::STRIKE);
         int raw = enemy_->dealDamage();
-        int dmg = player_.takeDamage(raw);
-        UI::printDamageReport(enemy_->getName(), player_.getName(), dmg,
-                              player_.isDodging());
+        DamageResult res = player_.takeDamage(raw);
+        UI::printDamageReport(enemy_->getName(), player_.getName(), res.damage, res.dodged);
         break;
     }
     case CombatAction::HeavyStrike: {
@@ -158,11 +162,25 @@ void CombatEngine::enemyTurn() {
         }
         enemy_->consumeStamina(cost::HEAVY_STRIKE);
         int raw = static_cast<int>(enemy_->dealDamage() * 1.8);
-        int dmg = player_.takeDamage(raw);
+        DamageResult res = player_.takeDamage(raw);
         UI::printCombatAction("  " + enemy_->getName() + " unleashes a devastating blow!",
                               ansi::BR_RED);
-        UI::printDamageReport(enemy_->getName(), player_.getName(), dmg,
-                              player_.isDodging());
+        UI::printDamageReport(enemy_->getName(), player_.getName(), res.damage, res.dodged);
+        break;
+    }
+    case CombatAction::SpecialAction: {
+        if (!enemy_->hasEnoughStamina(cost::SPECIAL_ACTION)) {
+            enemy_->restoreStamina(cost::REST_GAIN);
+            UI::printCombatAction("  " + enemy_->getName() + " fails to gather dark power...",
+                                  ansi::DIM);
+            break;
+        }
+        enemy_->consumeStamina(cost::SPECIAL_ACTION);
+        UI::printCombatAction("  " + enemy_->getName() + " unleashes [" +
+                              enemy_->getSpecialActionName() + "]!",
+                              ansi::BR_MAGENTA);
+        int dmg = enemy_->executeSpecialAction(player_);
+        UI::printDamageReport(enemy_->getName(), player_.getName(), dmg, player_.isDodging());
         break;
     }
     case CombatAction::Dodge:

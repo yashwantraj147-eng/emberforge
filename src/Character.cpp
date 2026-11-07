@@ -2,17 +2,11 @@
 //  Emberforge — Character Implementation
 // ============================================================================
 #include "Character.h"
+#include "Random.h"
 
 #include <algorithm>
-#include <random>
 
 namespace emberforge {
-
-// ── Static RNG (thread-safe seed) ──────────────────────────────────────────
-static std::mt19937& rng() {
-    static std::mt19937 gen(std::random_device{}());
-    return gen;
-}
 
 // ── Constructor ────────────────────────────────────────────────────────────
 Character::Character(const std::string& name,
@@ -28,20 +22,21 @@ Character::Character(const std::string& name,
 
 // ── Damage output with ±20 % variance ──────────────────────────────────────
 int Character::dealDamage() const {
-    std::uniform_real_distribution<double> dist(0.8, 1.2);
-    return std::max(1, static_cast<int>(attack_ * dist(rng())));
+    double mult = Random::getReal(0.8, 1.2);
+    return std::max(1, static_cast<int>(attack_ * mult));
 }
 
 // ── Receive damage (defense reduction + dodge mitigation) ──────────────────
-int Character::takeDamage(int rawDamage) {
+DamageResult Character::takeDamage(int rawDamage) {
+    bool wasDodging = dodging_;
     int mitigated = rawDamage - defense_ / 3;
-    if (dodging_) {
+    if (wasDodging) {
         mitigated = static_cast<int>(mitigated * 0.25);
         dodging_ = false;
     }
     mitigated = std::max(1, mitigated);
     hp_       = std::max(0, hp_ - mitigated);
-    return mitigated;
+    return {mitigated, wasDodging};
 }
 
 // ── Resource helpers ───────────────────────────────────────────────────────

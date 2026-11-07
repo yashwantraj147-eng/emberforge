@@ -10,21 +10,26 @@
 namespace emberforge {
 
 class Player : public Character {
+    PlayerClass playerClass_;
     int xp_;
     int xpToNext_;
     int potions_;
     int gold_;
     int kills_;
+    bool lastHitCrit_;
 
 public:
-    explicit Player(const std::string& name);
+    explicit Player(const std::string& name, PlayerClass playerClass = PlayerClass::Warrior);
 
     // ── Observers ──────────────────────────────────────────────────────────
-    int  getXp()       const { return xp_; }
-    int  getXpToNext() const { return xpToNext_; }
-    int  getPotions()  const { return potions_; }
-    int  getGold()     const { return gold_; }
-    int  getKills()    const { return kills_; }
+    PlayerClass getPlayerClass()   const { return playerClass_; }
+    std::string getClassName()     const;
+    int  getXp()                   const { return xp_; }
+    int  getXpToNext()             const { return xpToNext_; }
+    int  getPotions()              const { return potions_; }
+    int  getGold()                 const { return gold_; }
+    int  getKills()                const { return kills_; }
+    bool wasLastHitCrit()          const { return lastHitCrit_; }
 
     // ── Combat actions ─────────────────────────────────────────────────────
     /// Normal attack — costs 15 stamina.
@@ -41,8 +46,13 @@ public:
     // ── Progression ────────────────────────────────────────────────────────
     void gainXP(int amount);
     void gainGold(int amount);
+    bool spendGold(int amount);
     void addPotion(int count = 1);
     void incrementKills();
+    void upgradeAttack(int amount);
+    void upgradeDefense(int amount);
+    void upgradeMaxHp(int amount);
+    void upgradeMaxStamina(int amount);
     /// Returns true when a level-up occurs (auto-applies stat boosts).
     bool checkLevelUp();
     /// Full heal between encounters (campfire).

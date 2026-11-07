@@ -9,6 +9,11 @@
 
 namespace emberforge {
 
+struct DamageResult {
+    int damage;
+    bool dodged;
+};
+
 class Character {
 protected:
     std::string name_;
@@ -49,8 +54,8 @@ public:
     virtual int  dealDamage() const;
 
     /// Apply incoming raw damage, accounting for defense and dodge.
-    /// Returns actual damage dealt.
-    virtual int  takeDamage(int rawDamage);
+    /// Returns actual damage dealt and whether dodge mitigated the blow.
+    virtual DamageResult takeDamage(int rawDamage);
 
     // ── Polymorphic identity ───────────────────────────────────────────────
     virtual std::string getAsciiArt()  const = 0;

@@ -14,6 +14,7 @@ class GameEngine {
     std::unique_ptr<Player> player_;
     int  encounterNumber_;
     int  maxEncounters_;       // boss spawns on the final encounter
+    int  campfireSupplies_;    // limited rests per dungeon crawl
     bool running_;
     bool gameWon_;
 
@@ -21,8 +22,9 @@ class GameEngine {
     void characterCreation();
     void gameLoop();
     void exploration();
-    void encounter();
+    void encounter(bool isAmbush = false);
     void campfire();
+    void merchant();
     void showStats();
     void handleGameOver();
 

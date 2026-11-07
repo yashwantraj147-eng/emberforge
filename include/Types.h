@@ -54,7 +54,15 @@ enum class CombatAction {
     HeavyStrike,
     Dodge,
     Rest,
-    UsePotion
+    UsePotion,
+    SpecialAction
+};
+
+// ── Player classes ─────────────────────────────────────────────────────────
+enum class PlayerClass {
+    Warrior,
+    Rogue,
+    Mage
 };
 
 // ── Enemy archetypes ───────────────────────────────────────────────────────
@@ -68,11 +76,12 @@ enum class EnemyType {
 
 // ── Stamina cost table ─────────────────────────────────────────────────────
 namespace cost {
-    constexpr int STRIKE       = 15;
-    constexpr int HEAVY_STRIKE = 30;
-    constexpr int DODGE        = 10;
-    constexpr int REST_GAIN    = 25;
-    constexpr int POTION_HEAL  = 40;
+    constexpr int STRIKE         = 15;
+    constexpr int HEAVY_STRIKE   = 30;
+    constexpr int DODGE          = 10;
+    constexpr int REST_GAIN      = 25;
+    constexpr int POTION_HEAL    = 40;
+    constexpr int SPECIAL_ACTION = 35;
 }
 
 } // namespace emberforge

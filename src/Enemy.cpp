@@ -3,19 +3,9 @@
 //  Five archetypes with scaling stats and unique behavioural AI.
 // ============================================================================
 #include "Enemy.h"
-
-#include <random>
+#include "Random.h"
 
 namespace emberforge {
-
-// ── Shared RNG ─────────────────────────────────────────────────────────────
-static std::mt19937& rng() {
-    static std::mt19937 gen(std::random_device{}());
-    return gen;
-}
-static int roll(int lo, int hi) {
-    return std::uniform_int_distribution<>(lo, hi)(rng());
-}
 
 // ── Enemy base ─────────────────────────────────────────────────────────────
 Enemy::Enemy(const std::string& name, int hp, int stamina,
@@ -26,6 +16,11 @@ Enemy::Enemy(const std::string& name, int hp, int stamina,
     , type_(type), xpReward_(xpReward), goldReward_(goldReward)
     , description_(desc)
 {}
+
+int Enemy::executeSpecialAction(Character& target) {
+    int raw = static_cast<int>(dealDamage() * 1.5);
+    return target.takeDamage(raw).damage;
+}
 
 std::string Enemy::getColorCode() const {
     switch (type_) {
@@ -63,12 +58,18 @@ Skeleton::Skeleton(int lv)
 {}
 
 CombatAction Skeleton::chooseAction(int hpPct) {
-    int r = roll(1, 100);
-    if (hpPct < 25 && hasEnoughStamina(cost::DODGE)) return CombatAction::Dodge;
-    if (r <= 65)                                      return CombatAction::Strike;
-    if (r <= 85 && hasEnoughStamina(cost::HEAVY_STRIKE)) return CombatAction::HeavyStrike;
-    if (!hasEnoughStamina(cost::STRIKE))               return CombatAction::Rest;
+    int r = Random::get(1, 100);
+    if (hpPct < 25 && hasEnoughStamina(cost::DODGE))              return CombatAction::Dodge;
+    if (r <= 20 && hasEnoughStamina(cost::SPECIAL_ACTION))        return CombatAction::SpecialAction;
+    if (r <= 65 && hasEnoughStamina(cost::STRIKE))                return CombatAction::Strike;
+    if (r <= 85 && hasEnoughStamina(cost::HEAVY_STRIKE))          return CombatAction::HeavyStrike;
+    if (!hasEnoughStamina(cost::STRIKE))                          return CombatAction::Rest;
     return CombatAction::Strike;
+}
+
+int Skeleton::executeSpecialAction(Character& target) {
+    int raw = static_cast<int>(dealDamage() * 1.4);
+    return target.takeDamage(raw).damage;
 }
 
 std::string Skeleton::getAsciiArt() const {
@@ -98,13 +99,20 @@ DarkKnight::DarkKnight(int lv)
 {}
 
 CombatAction DarkKnight::chooseAction(int hpPct) {
-    int r = roll(1, 100);
-    if (hpPct < 30 && hasEnoughStamina(cost::DODGE)) return CombatAction::Dodge;
-    if (r <= 40)                                      return CombatAction::Strike;
-    if (r <= 70 && hasEnoughStamina(cost::HEAVY_STRIKE)) return CombatAction::HeavyStrike;
-    if (r <= 85 && hasEnoughStamina(cost::DODGE))     return CombatAction::Dodge;
-    if (!hasEnoughStamina(cost::STRIKE))               return CombatAction::Rest;
+    int r = Random::get(1, 100);
+    if (hpPct < 30 && hasEnoughStamina(cost::DODGE))              return CombatAction::Dodge;
+    if (r <= 20 && hasEnoughStamina(cost::SPECIAL_ACTION))        return CombatAction::SpecialAction;
+    if (r <= 50 && hasEnoughStamina(cost::STRIKE))                return CombatAction::Strike;
+    if (r <= 75 && hasEnoughStamina(cost::HEAVY_STRIKE))          return CombatAction::HeavyStrike;
+    if (r <= 85 && hasEnoughStamina(cost::DODGE))                 return CombatAction::Dodge;
+    if (!hasEnoughStamina(cost::STRIKE))                          return CombatAction::Rest;
     return CombatAction::Strike;
+}
+
+int DarkKnight::executeSpecialAction(Character& target) {
+    int raw = static_cast<int>(dealDamage() * 1.3);
+    target.consumeStamina(20);
+    return target.takeDamage(raw).damage;
 }
 
 std::string DarkKnight::getAsciiArt() const {
@@ -134,13 +142,21 @@ Wraith::Wraith(int lv)
 {}
 
 CombatAction Wraith::chooseAction(int hpPct) {
-    int r = roll(1, 100);
-    if (r <= 30 && hasEnoughStamina(cost::DODGE))     return CombatAction::Dodge;
-    if (r <= 60)                                      return CombatAction::Strike;
-    if (r <= 80 && hasEnoughStamina(cost::HEAVY_STRIKE)) return CombatAction::HeavyStrike;
-    if (!hasEnoughStamina(cost::STRIKE))               return CombatAction::Rest;
-    if (hpPct < 40 && hasEnoughStamina(cost::DODGE))  return CombatAction::Dodge;
+    int r = Random::get(1, 100);
+    if (r <= 25 && hasEnoughStamina(cost::DODGE))                 return CombatAction::Dodge;
+    if (hpPct < 60 && r <= 60 && hasEnoughStamina(cost::SPECIAL_ACTION)) return CombatAction::SpecialAction;
+    if (r <= 65 && hasEnoughStamina(cost::STRIKE))                return CombatAction::Strike;
+    if (r <= 80 && hasEnoughStamina(cost::HEAVY_STRIKE))          return CombatAction::HeavyStrike;
+    if (hpPct < 40 && hasEnoughStamina(cost::DODGE))              return CombatAction::Dodge;
+    if (!hasEnoughStamina(cost::STRIKE))                          return CombatAction::Rest;
     return CombatAction::Strike;
+}
+
+int Wraith::executeSpecialAction(Character& target) {
+    int raw = static_cast<int>(dealDamage() * 1.4);
+    DamageResult res = target.takeDamage(raw);
+    heal(res.damage / 2);
+    return res.damage;
 }
 
 std::string Wraith::getAsciiArt() const {
@@ -170,13 +186,19 @@ FireDrake::FireDrake(int lv)
 {}
 
 CombatAction FireDrake::chooseAction(int hpPct) {
-    int r = roll(1, 100);
     (void)hpPct;
-    if (r <= 30)                                      return CombatAction::Strike;
-    if (r <= 75 && hasEnoughStamina(cost::HEAVY_STRIKE)) return CombatAction::HeavyStrike;
-    if (r <= 85 && hasEnoughStamina(cost::DODGE))     return CombatAction::Dodge;
-    if (!hasEnoughStamina(cost::STRIKE))               return CombatAction::Rest;
+    int r = Random::get(1, 100);
+    if (r <= 30 && hasEnoughStamina(cost::SPECIAL_ACTION))        return CombatAction::SpecialAction;
+    if (r <= 60 && hasEnoughStamina(cost::HEAVY_STRIKE))          return CombatAction::HeavyStrike;
+    if (r <= 75 && hasEnoughStamina(cost::STRIKE))                return CombatAction::Strike;
+    if (r <= 85 && hasEnoughStamina(cost::DODGE))                 return CombatAction::Dodge;
+    if (!hasEnoughStamina(cost::STRIKE))                          return CombatAction::Rest;
     return CombatAction::Strike;
+}
+
+int FireDrake::executeSpecialAction(Character& target) {
+    int raw = static_cast<int>(dealDamage() * 2.2);
+    return target.takeDamage(raw).damage;
 }
 
 std::string FireDrake::getAsciiArt() const {
@@ -207,19 +229,29 @@ LichKing::LichKing(int lv)
 {}
 
 CombatAction LichKing::chooseAction(int hpPct) {
-    int r = roll(1, 100);
+    int r = Random::get(1, 100);
     // Adaptive — becomes more aggressive when hurt
     if (hpPct < 30) {
-        if (r <= 60 && hasEnoughStamina(cost::HEAVY_STRIKE)) return CombatAction::HeavyStrike;
-        if (r <= 80)                                          return CombatAction::Strike;
-        if (hasEnoughStamina(cost::DODGE))                    return CombatAction::Dodge;
+        if (r <= 40 && hasEnoughStamina(cost::SPECIAL_ACTION)) return CombatAction::SpecialAction;
+        if (r <= 70 && hasEnoughStamina(cost::HEAVY_STRIKE))   return CombatAction::HeavyStrike;
+        if (r <= 85 && hasEnoughStamina(cost::STRIKE))         return CombatAction::Strike;
+        if (hasEnoughStamina(cost::DODGE))                     return CombatAction::Dodge;
         return CombatAction::Rest;
     }
-    if (r <= 35)                                      return CombatAction::Strike;
-    if (r <= 60 && hasEnoughStamina(cost::HEAVY_STRIKE)) return CombatAction::HeavyStrike;
-    if (r <= 80 && hasEnoughStamina(cost::DODGE))     return CombatAction::Dodge;
-    if (!hasEnoughStamina(cost::STRIKE))               return CombatAction::Rest;
+    if (r <= 25 && hasEnoughStamina(cost::SPECIAL_ACTION)) return CombatAction::SpecialAction;
+    if (r <= 50 && hasEnoughStamina(cost::HEAVY_STRIKE))   return CombatAction::HeavyStrike;
+    if (r <= 75 && hasEnoughStamina(cost::STRIKE))         return CombatAction::Strike;
+    if (r <= 85 && hasEnoughStamina(cost::DODGE))          return CombatAction::Dodge;
+    if (!hasEnoughStamina(cost::STRIKE))                   return CombatAction::Rest;
     return CombatAction::Strike;
+}
+
+int LichKing::executeSpecialAction(Character& target) {
+    int raw = static_cast<int>(dealDamage() * 2.0);
+    DamageResult res = target.takeDamage(raw);
+    target.consumeStamina(25);
+    heal(25);
+    return res.damage;
 }
 
 std::string LichKing::getAsciiArt() const {

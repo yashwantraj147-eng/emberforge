@@ -38,10 +38,12 @@ Built as a showcase of **modern C++17** design: clean OOP hierarchies, polymorph
 | Feature | Description |
 |---|---|
 | 🎨 **Rich Terminal UI** | ANSI-coloured health/stamina bars, Unicode box-drawing frames, fire-gradient title screen |
+| 🧙 **3 Player Classes** | Warrior, Rogue, and Mage with distinct stat curves, ASCII portraits, and perks |
 | ⚔️ **Strategic Combat** | 5 player actions: Strike, Heavy Strike, Dodge, Rest, Use Potion — each with stamina trade-offs |
 | 🧠 **Polymorphic Enemy AI** | 5 enemy archetypes with unique behavioural decision trees |
 | 📈 **Progression System** | XP, levelling, stat scaling, gold, and potion drops |
-| 🏕️ **Campfire Rest** | Heal between encounters at the risk of missing loot |
+| 🛒 **Citadel Trader** | Spend earned gold on potions, whetstone weapon upgrades, and armor plating |
+| 🏕️ **Campfire Rest** | Heal between encounters with limited supplies at the risk of missing loot or ambushes |
 | 👑 **Boss Fight** | Face the Lich King with adaptive AI in the final encounter |
 | 🖥️ **Cross-Platform** | Compiles on Windows (MSVC), Linux (GCC/Clang), and macOS |
 
@@ -62,6 +64,14 @@ Built as a showcase of **modern C++17** design: clean OOP hierarchies, polymorph
   ║  [5] Use Potion       (×3)               ║
   ╚══════════════════════════════════════════╝
 ```
+
+### Player Classes
+
+| Class | Profile | Special Perk |
+|---|---|---|
+| 🛡️ **Warrior** | High HP (120), High Defense (12) | Unyielding resilience, stalwart defense scaling |
+| 🗡️ **Rogue** | High Stamina (120), High ATK (22) | 25-35% Critical Strike chance (1.5× DMG), reduced Dodge cost (7 ST) |
+| 🔮 **Mage** | Fragile HP (75), Immense ATK (26) | Arcane Surge on Heavy Strike (+15% to +35% elemental damage) |
 
 ### Combat Strategy
 - **Strike** — Reliable damage at low stamina cost.

@@ -1,6 +1,5 @@
 # ============================================================================
 #  Emberforge — CMake Build Configuration
-#  A dark-fantasy terminal combat simulator & text RPG engine
 # ============================================================================
 cmake_minimum_required(VERSION 3.16)
 project(emberforge
@@ -14,9 +13,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# ── Source files ────────────────────────────────────────────────────────────
-set(EMBERFORGE_SOURCES
-    src/main.cpp
+# ── Core Library ────────────────────────────────────────────────────────────
+set(EMBERFORGE_CORE_SOURCES
     src/Character.cpp
     src/Player.cpp
     src/Enemy.cpp
@@ -25,19 +23,30 @@ set(EMBERFORGE_SOURCES
     src/GameEngine.cpp
 )
 
-# ── Executable ──────────────────────────────────────────────────────────────
-add_executable(${PROJECT_NAME} ${EMBERFORGE_SOURCES})
-
-target_include_directories(${PROJECT_NAME} PRIVATE
+add_library(emberforge_core STATIC ${EMBERFORGE_CORE_SOURCES})
+target_include_directories(emberforge_core PUBLIC
     ${CMAKE_SOURCE_DIR}/include
 )
 
 # ── Compiler warnings ──────────────────────────────────────────────────────
 if(MSVC)
-    target_compile_options(${PROJECT_NAME} PRIVATE /W4)
+    target_compile_options(emberforge_core PRIVATE /W4)
 else()
-    target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic)
+    target_compile_options(emberforge_core PRIVATE -Wall -Wextra -Wpedantic)
+endif()
+
+# ── Main Executable ─────────────────────────────────────────────────────────
+add_executable(${PROJECT_NAME} src/main.cpp)
+target_link_libraries(${PROJECT_NAME} PRIVATE emberforge_core)
+
+# ── Tests ───────────────────────────────────────────────────────────────────
+option(BUILD_TESTING "Build the testing tree." ON)
+if(BUILD_TESTING)
+    enable_testing()
+    add_executable(emberforge_tests tests/test_main.cpp)
+    target_link_libraries(emberforge_tests PRIVATE emberforge_core)
+    add_test(NAME UnitTests COMMAND emberforge_tests)
 endif()
 
 # ── Install target ──────────────────────────────────────────────────────────
-install(TARGETS ${PROJECT_NAME} DESTINATION bin)
+install(TARGETS ${PROJECT_NAME} emberforge_core DESTINATION bin)

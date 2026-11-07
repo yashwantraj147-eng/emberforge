@@ -8,15 +8,21 @@
 #include "Types.h"
 
 #include <algorithm>
+#include <chrono>
+#include <iomanip>
 #include <iostream>
 #include <sstream>
 #include <string>
-#include <iomanip>
+#include <thread>
 
 #ifdef _WIN32
+  #ifndef WIN32_LEAN_AND_MEAN
+    #define WIN32_LEAN_AND_MEAN
+  #endif
+  #ifndef NOMINMAX
+    #define NOMINMAX
+  #endif
   #include <windows.h>
-#else
-  #include <unistd.h>
 #endif
 
 namespace emberforge {
@@ -33,15 +39,13 @@ void UI::enableAnsiColors() {
         mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
         SetConsoleMode(hOut, mode);
     }
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
 #endif
 }
 
 void UI::clearScreen() {
-#ifdef _WIN32
-    system("cls");
-#else
-    system("clear");
-#endif
+    std::cout << "\033[2J\033[H" << std::flush;
 }
 
 void UI::pause(const std::string& msg) {
@@ -51,15 +55,14 @@ void UI::pause(const std::string& msg) {
     else
         std::cout << "\n" << msg;
     std::cout << ansi::RESET;
+    if (std::cin.eof()) {
+        return;
+    }
     std::cin.ignore(10000, '\n');
 }
 
 void UI::sleepMs(int ms) {
-#ifdef _WIN32
-    Sleep(static_cast<DWORD>(ms));
-#else
-    usleep(static_cast<useconds_t>(ms) * 1000);
-#endif
+    std::this_thread::sleep_for(std::chrono::milliseconds(ms));
 }
 
 // ============================================================================
@@ -89,15 +92,17 @@ void UI::printBoxBottom(int width, const std::string& color) {
 void UI::printBoxLine(const std::string& text, int width,
                       const std::string& color) {
     std::string c = color.empty() ? ansi::DIM : color;
-    // Strip ANSI for length calculation
-    std::string plain;
+    // Calculate visual length ignoring ANSI sequences and counting UTF-8 code points
+    int visualLen = 0;
     bool inEsc = false;
-    for (char ch : text) {
+    for (unsigned char ch : text) {
         if (ch == '\033') { inEsc = true; continue; }
         if (inEsc) { if (ch == 'm') inEsc = false; continue; }
-        plain += ch;
+        if ((ch & 0xC0) != 0x80) {
+            ++visualLen;
+        }
     }
-    int pad = std::max(0, width - static_cast<int>(plain.size()));
+    int pad = std::max(0, width - visualLen);
     std::cout << c << "  \xe2\x95\x91 " << ansi::RESET  // ║
               << text << std::string(static_cast<size_t>(pad), ' ')
               << c << " \xe2\x95\x91" << ansi::RESET << "\n"; // ║
@@ -175,6 +180,9 @@ int UI::getChoice(int min, int max) {
             std::cin.ignore(10000, '\n');
             return choice;
         }
+        if (std::cin.eof()) {
+            std::exit(0);
+        }
         std::cin.clear();
         std::cin.ignore(10000, '\n');
         std::cout << ansi::RED << "  Invalid choice. Try again." << ansi::RESET << "\n";
@@ -184,9 +192,30 @@ int UI::getChoice(int min, int max) {
 std::string UI::getPlayerName() {
     std::cout << ansi::BR_CYAN << "\n  Enter your name, warrior: " << ansi::RESET;
     std::string name;
-    std::getline(std::cin, name);
-    if (name.empty()) name = "Ashen One";
+    if (!std::getline(std::cin, name) || name.empty()) {
+        name = "Ashen One";
+    }
     return name;
+}
+
+PlayerClass UI::getPlayerClassChoice() {
+    std::cout << "\n";
+    printBoxTop(54, ansi::CYAN);
+    printBoxLine(std::string(ansi::BOLD) + ansi::BR_CYAN +
+        "              CHOOSE YOUR CLASS" + ansi::RESET, 54, ansi::CYAN);
+    printBoxLine("", 54, ansi::CYAN);
+    printBoxLine(std::string(ansi::BR_WHITE) + "  [1] Warrior — Stalwart tank (120 HP, 12 DEF)" + ansi::RESET, 54, ansi::CYAN);
+    printBoxLine(std::string(ansi::BR_WHITE) + "  [2] Rogue   — Swift assassin (Crits, 120 ST, low dodge)" + ansi::RESET, 54, ansi::CYAN);
+    printBoxLine(std::string(ansi::BR_WHITE) + "  [3] Mage    — Pyromancer (26 ATK, Arcane blast)" + ansi::RESET, 54, ansi::CYAN);
+    printBoxBottom(54, ansi::CYAN);
+
+    int choice = getChoice(1, 3);
+    switch (choice) {
+    case 1: return PlayerClass::Warrior;
+    case 2: return PlayerClass::Rogue;
+    case 3: return PlayerClass::Mage;
+    }
+    return PlayerClass::Warrior;
 }
 
 // ============================================================================
@@ -243,7 +272,7 @@ void UI::printCombatHeader(const Player& p, const Enemy& e) {
     // Player side
     std::cout << "  " << p.getColorCode() << ansi::BOLD
               << p.getName() << ansi::RESET
-              << ansi::DIM << "  [Lv." << p.getLevel() << "]" << ansi::RESET << "\n";
+              << ansi::DIM << "  [" << p.getClassName() << " - Lv." << p.getLevel() << "]" << ansi::RESET << "\n";
     printHealthBar(" HP ", p.getHp(), p.getMaxHp(), "");
     printStaminaBar(" ST ", p.getStamina(), p.getMaxStamina());
     std::cout << "  "
@@ -311,12 +340,19 @@ void UI::printCombatAction(const std::string& msg, const std::string& color) {
 }
 
 void UI::printDamageReport(const std::string& attacker, const std::string& target,
-                           int damage, bool dodged) {
+                           int damage, bool dodged, bool isCrit) {
     if (dodged) {
         std::cout << "\n  " << ansi::BR_BLUE << target
                   << " partially evades! "
                   << ansi::BR_RED << "-" << damage << " HP"
                   << ansi::DIM << " (reduced)" << ansi::RESET << "\n";
+    } else if (isCrit) {
+        std::cout << "\n  " << ansi::BR_MAGENTA << ansi::BOLD
+                  << "CRITICAL STRIKE! " << ansi::RESET
+                  << ansi::BR_WHITE << attacker << " fatally strikes "
+                  << target << "!  "
+                  << ansi::BR_RED << ansi::BOLD << "-" << damage << " HP"
+                  << ansi::RESET << "\n";
     } else {
         std::cout << "\n  " << ansi::BR_WHITE << attacker << " strikes "
                   << target << "!  "
@@ -331,27 +367,28 @@ void UI::printDamageReport(const std::string& attacker, const std::string& targe
 void UI::printPlayerStats(const Player& p) {
     clearScreen();
     std::cout << "\n";
+    std::cout << p.getColorCode() << p.getAsciiArt() << ansi::RESET << "\n";
     printBoxTop(50, ansi::CYAN);
     printBoxLine(std::string(ansi::BOLD) + ansi::BR_CYAN +
         "           CHARACTER STATS" + ansi::RESET, 50, ansi::CYAN);
     printBoxLine("", 50, ansi::CYAN);
 
-    auto stat = [](const std::string& label, int val) {
+    auto formatStat = [](const std::string& label, const std::string& val) {
         std::ostringstream os;
         os << ansi::BR_WHITE << "  " << std::left << std::setw(16) << label
            << ansi::BR_YELLOW << val << ansi::RESET;
         return os.str();
     };
 
-    printBoxLine(stat("Name:", 0).replace(
-        stat("Name:", 0).find("0"), 1, p.getName()), 50, ansi::CYAN);
-    printBoxLine(stat("Level:", p.getLevel()), 50, ansi::CYAN);
-    printBoxLine(stat("HP:", p.getHp()) + " / " +
-                 std::to_string(p.getMaxHp()), 50, ansi::CYAN);
-    printBoxLine(stat("Stamina:", p.getStamina()) + " / " +
-                 std::to_string(p.getMaxStamina()), 50, ansi::CYAN);
-    printBoxLine(stat("Attack:", p.getAttack()), 50, ansi::CYAN);
-    printBoxLine(stat("Defense:", p.getDefense()), 50, ansi::CYAN);
+    printBoxLine(formatStat("Name:", p.getName()), 50, ansi::CYAN);
+    printBoxLine(formatStat("Class:", p.getClassName()), 50, ansi::CYAN);
+    printBoxLine(formatStat("Level:", std::to_string(p.getLevel())), 50, ansi::CYAN);
+    printBoxLine(formatStat("HP:", std::to_string(p.getHp()) + " / " +
+                 std::to_string(p.getMaxHp())), 50, ansi::CYAN);
+    printBoxLine(formatStat("Stamina:", std::to_string(p.getStamina()) + " / " +
+                 std::to_string(p.getMaxStamina())), 50, ansi::CYAN);
+    printBoxLine(formatStat("Attack:", std::to_string(p.getAttack())), 50, ansi::CYAN);
+    printBoxLine(formatStat("Defense:", std::to_string(p.getDefense())), 50, ansi::CYAN);
     printBoxLine("", 50, ansi::CYAN);
 
     {
@@ -453,7 +490,7 @@ void UI::printLevelUp(const Player& p) {
     pause();
 }
 
-void UI::printCampfire() {
+void UI::printCampfire(int remainingRests) {
     clearScreen();
     std::cout << "\n";
 
@@ -481,8 +518,50 @@ void UI::printCampfire() {
     printBoxLine("", 50, ansi::BR_YELLOW);
     printBoxLine(std::string(ansi::BR_GREEN) +
         "  HP and Stamina fully restored." + ansi::RESET, 50, ansi::BR_YELLOW);
+    {
+        std::ostringstream os;
+        os << ansi::DIM << "  Remaining campfire supplies: " << ansi::BR_YELLOW
+           << remainingRests << ansi::RESET;
+        printBoxLine(os.str(), 50, ansi::BR_YELLOW);
+    }
     printBoxBottom(50, ansi::BR_YELLOW);
     pause();
+}
+
+void UI::printMerchantMenu(const Player& p) {
+    clearScreen();
+    std::cout << "\n";
+    std::cout << ansi::BR_YELLOW << R"(
+         .---.
+        /     \
+       | () () |     [ Wandering Citadel Trader ]
+        \  -  /      "Gold for survival, warrior."
+         `---`
+    )" << ansi::RESET << "\n";
+
+    printBoxTop(52, ansi::YELLOW);
+    printBoxLine(std::string(ansi::BOLD) + ansi::BR_YELLOW +
+        "             CITADEL TRADER" + ansi::RESET, 52, ansi::YELLOW);
+    printBoxLine("", 52, ansi::YELLOW);
+    {
+        std::ostringstream os;
+        os << ansi::BR_YELLOW << "  Your Gold: " << p.getGold()
+           << "    " << ansi::BR_MAGENTA << "Potions: " << p.getPotions() << ansi::RESET;
+        printBoxLine(os.str(), 52, ansi::YELLOW);
+    }
+    printBoxLine("", 52, ansi::YELLOW);
+    printBoxLine(std::string(ansi::BR_WHITE) + "  [1] Healing Potion             (25 Gold)" + ansi::RESET, 52, ansi::YELLOW);
+    printBoxLine(std::string(ansi::BR_WHITE) + "  [2] Whetstone       (+3 ATK)   (45 Gold)" + ansi::RESET, 52, ansi::YELLOW);
+    printBoxLine(std::string(ansi::BR_WHITE) + "  [3] Iron Plating    (+2 DEF)   (45 Gold)" + ansi::RESET, 52, ansi::YELLOW);
+    printBoxLine(std::string(ansi::BR_WHITE) + "  [4] Stamina Elixir  (+15 MaxST)(50 Gold)" + ansi::RESET, 52, ansi::YELLOW);
+    printBoxLine(std::string(ansi::BR_WHITE) + "  [5] Life Crystal    (+20 MaxHP)(50 Gold)" + ansi::RESET, 52, ansi::YELLOW);
+    printBoxLine(std::string(ansi::BR_CYAN)  + "  [6] Leave shop" + ansi::RESET, 52, ansi::YELLOW);
+    printBoxBottom(52, ansi::YELLOW);
+}
+
+void UI::printMerchantMessage(const std::string& msg, const std::string& color) {
+    std::cout << "\n  " << (color.empty() ? ansi::BR_WHITE : color.c_str())
+              << msg << ansi::RESET << "\n";
 }
 
 void UI::printGameComplete(const Player& p) {

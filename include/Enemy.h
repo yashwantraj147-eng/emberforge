@@ -35,8 +35,10 @@ public:
     int                getGoldReward()  const { return goldReward_; }
     const std::string& getDescription() const { return description_; }
 
-    // Each archetype implements its own AI decision tree.
+    // Each archetype implements its own AI decision tree and special attack.
     virtual CombatAction chooseAction(int selfHpPercent) = 0;
+    virtual std::string  getSpecialActionName() const { return "Special Attack"; }
+    virtual int          executeSpecialAction(Character& target);
 
     std::string getColorCode() const override;
 };
@@ -47,6 +49,8 @@ class Skeleton : public Enemy {
 public:
     explicit Skeleton(int playerLevel);
     CombatAction chooseAction(int selfHpPercent) override;
+    std::string  getSpecialActionName() const override { return "Bone Frenzy"; }
+    int          executeSpecialAction(Character& target) override;
     std::string  getAsciiArt() const override;
 };
 
@@ -56,6 +60,8 @@ class DarkKnight : public Enemy {
 public:
     explicit DarkKnight(int playerLevel);
     CombatAction chooseAction(int selfHpPercent) override;
+    std::string  getSpecialActionName() const override { return "Shield Slam"; }
+    int          executeSpecialAction(Character& target) override;
     std::string  getAsciiArt() const override;
 };
 
@@ -65,6 +71,8 @@ class Wraith : public Enemy {
 public:
     explicit Wraith(int playerLevel);
     CombatAction chooseAction(int selfHpPercent) override;
+    std::string  getSpecialActionName() const override { return "Life Siphon"; }
+    int          executeSpecialAction(Character& target) override;
     std::string  getAsciiArt() const override;
 };
 
@@ -74,6 +82,8 @@ class FireDrake : public Enemy {
 public:
     explicit FireDrake(int playerLevel);
     CombatAction chooseAction(int selfHpPercent) override;
+    std::string  getSpecialActionName() const override { return "Inferno Breath"; }
+    int          executeSpecialAction(Character& target) override;
     std::string  getAsciiArt() const override;
 };
 
@@ -83,6 +93,8 @@ class LichKing : public Enemy {
 public:
     explicit LichKing(int playerLevel);
     CombatAction chooseAction(int selfHpPercent) override;
+    std::string  getSpecialActionName() const override { return "Soul Devour"; }
+    int          executeSpecialAction(Character& target) override;
     std::string  getAsciiArt() const override;
 };
 

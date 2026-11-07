@@ -5,21 +5,19 @@
 #include "GameEngine.h"
 #include "CombatEngine.h"
 #include "Enemy.h"
+#include "Random.h"
 #include "UI.h"
 
-#include <random>
+#include <iostream>
+#include <sstream>
 
 namespace emberforge {
-
-static std::mt19937& rng() {
-    static std::mt19937 gen(std::random_device{}());
-    return gen;
-}
 
 GameEngine::GameEngine()
     : player_(nullptr)
     , encounterNumber_(0)
     , maxEncounters_(7)       // 6 regular fights + 1 boss
+    , campfireSupplies_(2)    // 2 campfire rests per adventure
     , running_(true)
     , gameWon_(false)
 {}
@@ -56,34 +54,36 @@ void GameEngine::showMainMenu() {
 
 void GameEngine::characterCreation() {
     std::string name = UI::getPlayerName();
-    player_ = std::make_unique<Player>(name);
+    PlayerClass pClass = UI::getPlayerClassChoice();
+    player_ = std::make_unique<Player>(name, pClass);
 
     UI::clearScreen();
     std::cout << "\n";
-    UI::printBoxTop(50, ansi::CYAN);
+    std::cout << player_->getColorCode() << player_->getAsciiArt() << ansi::RESET << "\n";
+    UI::printBoxTop(52, ansi::CYAN);
     UI::printBoxLine(std::string(ansi::BOLD) + ansi::BR_CYAN +
-        "         YOUR JOURNEY BEGINS" + ansi::RESET, 50, ansi::CYAN);
-    UI::printBoxLine("", 50, ansi::CYAN);
+        "          YOUR JOURNEY BEGINS" + ansi::RESET, 52, ansi::CYAN);
+    UI::printBoxLine("", 52, ansi::CYAN);
     UI::printBoxLine(std::string(ansi::DIM) +
         "  The gates of the Ashen Citadel groan open." + ansi::RESET,
-        50, ansi::CYAN);
+        52, ansi::CYAN);
     UI::printBoxLine(std::string(ansi::DIM) +
         "  Darkness spills from within like black water." + ansi::RESET,
-        50, ansi::CYAN);
+        52, ansi::CYAN);
     UI::printBoxLine(std::string(ansi::DIM) +
         "  You tighten your grip and step forward." + ansi::RESET,
-        50, ansi::CYAN);
-    UI::printBoxLine("", 50, ansi::CYAN);
+        52, ansi::CYAN);
+    UI::printBoxLine("", 52, ansi::CYAN);
 
     std::ostringstream os;
     os << ansi::BR_CYAN << "  " << player_->getName()
-       << ansi::DIM << "  —  Level " << player_->getLevel()
-       << "  |  HP " << player_->getHp()
-       << "  |  ATK " << player_->getAttack()
-       << "  |  DEF " << player_->getDefense()
+       << " [" << player_->getClassName() << "]"
+       << ansi::DIM << "  —  HP " << player_->getHp()
+       << " | ATK " << player_->getAttack()
+       << " | DEF " << player_->getDefense()
        << ansi::RESET;
-    UI::printBoxLine(os.str(), 50, ansi::CYAN);
-    UI::printBoxBottom(50, ansi::CYAN);
+    UI::printBoxLine(os.str(), 52, ansi::CYAN);
+    UI::printBoxBottom(52, ansi::CYAN);
     UI::pause();
 }
 
@@ -110,8 +110,7 @@ void GameEngine::exploration() {
         "Water drips in rhythm, counting down something terrible...",
         "The walls seem to breathe, contracting in the dark..."
     };
-    int idx = std::uniform_int_distribution<>(
-        0, static_cast<int>(std::size(flavour)) - 1)(rng());
+    int idx = Random::get(0, static_cast<int>(std::size(flavour)) - 1);
 
     UI::printSeparator(58, ansi::DIM);
     std::cout << "\n  " << ansi::ITALIC << ansi::DIM
@@ -121,24 +120,31 @@ void GameEngine::exploration() {
               << ansi::DIM << "Encounter " << (encounterNumber_ + 1)
               << " / " << maxEncounters_ << ansi::RESET << "\n\n";
 
-    UI::printBoxTop(40, ansi::CYAN);
+    UI::printBoxTop(45, ansi::CYAN);
     UI::printBoxLine(std::string(ansi::BR_WHITE) +
-        "  [1] Advance deeper" + ansi::RESET, 40, ansi::CYAN);
-    UI::printBoxLine(std::string(ansi::BR_GREEN) +
-        "  [2] Rest at campfire" + ansi::RESET, 40, ansi::CYAN);
+        "  [1] Advance deeper" + ansi::RESET, 45, ansi::CYAN);
+    {
+        std::ostringstream os;
+        const char* cColor = (campfireSupplies_ > 0) ? ansi::BR_GREEN : ansi::DIM;
+        os << cColor << "  [2] Rest at campfire (" << campfireSupplies_ << " left)" << ansi::RESET;
+        UI::printBoxLine(os.str(), 45, ansi::CYAN);
+    }
+    UI::printBoxLine(std::string(ansi::BR_YELLOW) +
+        "  [3] Citadel trader" + ansi::RESET, 45, ansi::CYAN);
     UI::printBoxLine(std::string(ansi::BR_CYAN) +
-        "  [3] View stats" + ansi::RESET, 40, ansi::CYAN);
+        "  [4] View stats" + ansi::RESET, 45, ansi::CYAN);
     UI::printBoxLine(std::string(ansi::RED) +
-        "  [4] Flee (quit)" + ansi::RESET, 40, ansi::CYAN);
-    UI::printBoxBottom(40, ansi::CYAN);
+        "  [5] Flee (quit)" + ansi::RESET, 45, ansi::CYAN);
+    UI::printBoxBottom(45, ansi::CYAN);
 
-    int choice = UI::getChoice(1, 4);
+    int choice = UI::getChoice(1, 5);
 
     switch (choice) {
     case 1: encounter();  break;
     case 2: campfire();   break;
-    case 3: showStats();  break;
-    case 4:
+    case 3: merchant();   break;
+    case 4: showStats();  break;
+    case 5:
         running_ = false;
         std::cout << ansi::DIM
                   << "\n  You turn back, the darkness claiming victory...\n"
@@ -151,8 +157,10 @@ void GameEngine::exploration() {
 // ============================================================================
 //  Encounter
 // ============================================================================
-void GameEngine::encounter() {
-    ++encounterNumber_;
+void GameEngine::encounter(bool isAmbush) {
+    if (!isAmbush) {
+        ++encounterNumber_;
+    }
 
     // Final encounter = boss
     EnemyType type;
@@ -176,8 +184,95 @@ void GameEngine::encounter() {
 }
 
 void GameEngine::campfire() {
+    if (campfireSupplies_ <= 0) {
+        std::cout << "\n" << ansi::RED << "  You have no campfire supplies left! The ashes are cold." << ansi::RESET << "\n";
+        UI::pause();
+        return;
+    }
+
+    --campfireSupplies_;
     player_->restAtCampfire();
-    UI::printCampfire();
+    UI::printCampfire(campfireSupplies_);
+
+    // Strategic trade-off from README: "Heal between encounters at the risk of missing loot"
+    if (encounterNumber_ < maxEncounters_ - 1) {
+        ++encounterNumber_;
+        std::cout << "\n" << ansi::DIM << "  Time slipped away while resting. You advanced deeper into the citadel..." << ansi::RESET << "\n";
+        UI::pause();
+    }
+
+    // 25% chance of an ambush during rest!
+    if (Random::chance(25) && encounterNumber_ < maxEncounters_) {
+        std::cout << "\n" << ansi::BOLD << ansi::BR_RED
+                  << "  !! AMBUSH !! A creature stalks from the dark while you gather your gear!\n"
+                  << ansi::RESET;
+        UI::pause("  Press [Enter] to defend yourself!");
+        encounter(/*isAmbush=*/true);
+    }
+}
+
+void GameEngine::merchant() {
+    bool inShop = true;
+    while (inShop) {
+        UI::printMerchantMenu(*player_);
+        int choice = UI::getChoice(1, 6);
+
+        switch (choice) {
+        case 1: { // Potion (25 gold)
+            if (player_->spendGold(25)) {
+                player_->addPotion(1);
+                UI::printMerchantMessage("  You purchased a Healing Potion! (+1 Potion)", ansi::BR_GREEN);
+            } else {
+                UI::printMerchantMessage("  Not enough gold! The trader scoffs.", ansi::RED);
+            }
+            UI::sleepMs(700);
+            break;
+        }
+        case 2: { // Whetstone (+3 ATK) (45 gold)
+            if (player_->spendGold(45)) {
+                player_->upgradeAttack(3);
+                UI::printMerchantMessage("  Your blade gleams with newfound edge! (+3 ATK)", ansi::BR_GREEN);
+            } else {
+                UI::printMerchantMessage("  Not enough gold for the whetstone!", ansi::RED);
+            }
+            UI::sleepMs(700);
+            break;
+        }
+        case 3: { // Iron Plating (+2 DEF) (45 gold)
+            if (player_->spendGold(45)) {
+                player_->upgradeDefense(2);
+                UI::printMerchantMessage("  Armor reinforced with blackened iron! (+2 DEF)", ansi::BR_GREEN);
+            } else {
+                UI::printMerchantMessage("  Not enough gold for the plating!", ansi::RED);
+            }
+            UI::sleepMs(700);
+            break;
+        }
+        case 4: { // Stamina Elixir (+15 Max ST) (50 gold)
+            if (player_->spendGold(50)) {
+                player_->upgradeMaxStamina(15);
+                UI::printMerchantMessage("  A surge of vigor courses through your veins! (+15 Max Stamina)", ansi::BR_GREEN);
+            } else {
+                UI::printMerchantMessage("  Not enough gold for the elixir!", ansi::RED);
+            }
+            UI::sleepMs(700);
+            break;
+        }
+        case 5: { // Life Crystal (+20 Max HP) (50 gold)
+            if (player_->spendGold(50)) {
+                player_->upgradeMaxHp(20);
+                UI::printMerchantMessage("  The crystal dissolves, fortifying your soul! (+20 Max HP)", ansi::BR_GREEN);
+            } else {
+                UI::printMerchantMessage("  Not enough gold for the crystal!", ansi::RED);
+            }
+            UI::sleepMs(700);
+            break;
+        }
+        case 6: // Leave shop
+            inShop = false;
+            break;
+        }
+    }
 }
 
 void GameEngine::showStats() {
@@ -186,7 +281,6 @@ void GameEngine::showStats() {
 
 void GameEngine::handleGameOver() {
     UI::clearScreen();
-    UI::printDefeat();
 
     std::cout << "\n";
     UI::printBoxTop(45, ansi::RED);
@@ -209,7 +303,7 @@ void GameEngine::handleGameOver() {
 // ============================================================================
 EnemyType GameEngine::randomEnemyType() const {
     // Weight system: Skeleton and Wraith common early, tougher foes later
-    int r = std::uniform_int_distribution<>(1, 100)(rng());
+    int r = Random::get(1, 100);
 
     if (encounterNumber_ <= 2) {
         // Early game: mostly easy enemies
