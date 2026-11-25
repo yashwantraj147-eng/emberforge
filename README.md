@@ -102,7 +102,7 @@ Built as a showcase of **modern C++17** design: clean OOP hierarchies, polymorph
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/emberforge.git
+git clone https://github.com/yashwantraj147-eng/emberforge.git
 cd emberforge
 
 # Create build directory and compile
